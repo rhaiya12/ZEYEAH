@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Image Upload and Audio Input</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #ff7e5f, #feb47b, #ff6a00, #d83e3e, #a03eae, #3e3ea0);
+            background-size: 300% 300%;
+            animation: gradientAnimation 15s ease infinite;
+            color: #fff;
+        }
+
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        h1 {
+            margin-top: 20px;
+            font-size: 3em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #imageContainer {
+            width: 100%;
+            height: auto;
+            margin: 20px auto;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        #uploadedImage {
+            max-width: 100%;
+            height: auto;
+            display: none;
+            border-radius: 10px;
+        }
+
+        #response {
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+
+        #startBtn {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        #startBtn:hover {
+            background-color: #e64a19;
+        }
+
+        input[type="file"] {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        #voiceSelect {
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 1em;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload and Display a Colorful Image and Audio</h1>
+    <input type="file" id="imageUpload" accept="image/*" />
+    <div id="imageContainer">
+        <img id="uploadedImage" alt="Uploaded Image" />
+    </div>
+    <div id="response">Press "Start Talking" and speak!</div>
+
+    <label for="voiceSelect">Choose a voice:</label>
+    <select id="voiceSelect"></select>
+
+    <button id="startBtn">Start Talking</button>
+
+    <h2>Upload Audio for Playback</h2>
+    <input type="file" id="audioUpload" accept="audio/*" />
+    
+    <!-- JavaScript for Speech Recognition and AI Interaction -->
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const responseDiv = document.getElementById('response');
+        const imageUpload = document.getElementById('imageUpload');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const audioUpload = document.getElementById('audioUpload');
+        let recognition;
+        let isListening = false;
+        let voices = [];
+
+        // Load available voices
+        function loadVoices() {
+            voices = speechSynthesis.getVoices();
+            voiceSelect.innerHTML = ''; // Clear previous options
+            voices.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.name;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        // Initialize speech recognition
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isListening = true;
+                startBtn.textContent = "Listening...";
+            };
+
+            recognition.onresult = async (event) => {
+                isListening = false;
+                startBtn.textContent = "Processing...";
+
+                const transcript = event.results[0][0].transcript;
+                responseDiv.textContent = `You said: "${transcript}"`;
+
+                // Get AI response
+                const aiResponse = await getAIResponse(transcript);
+                responseDiv.textContent = aiResponse;
+                speakResponse(aiResponse);  // Speak response using selected voice
+            };
+
+            recognition.onerror = (event) => {
+                isListening = false;
+                responseDiv.textContent = `Error: ${event.error}`;
+                startBtn.textContent = "Start Talking";
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                startBtn.textContent = "Start Talking";
+            };
+
+            startBtn.onclick = () => {
+                if (isListening) recognition.stop();
+                else recognition.start();
+            };
+        } else {
+            responseDiv.textContent = "Your browser does not support speech recognition.";
+        }
+
+        // Get AI response based on user input
+        async function getAIResponse(userInput) {
+            const lowerInput = userInput.toLowerCase();
+            const responses = {
+                "how are you": "I'm here to listen to you. How are you feeling?",
+                "i feel sad": "I'm sorry to hear that. It's okay to feel sad sometimes. Would you like to talk about it?",
+                "i'm depressed": "It's important to talk about how you're feeling. You're not alone in this.",
+                "i feel like killing myself": "I'm really sorry you're feeling this way. It might help to reach out to someone you trust, or a mental health professional. Remember, there are people who want to help you through this.",
+                "what should I do?": "Sometimes, talking to someone can help. Have you considered reaching out to a friend or a professional?",
+                "i can't sleep": "Sleep issues can be tough. Have you tried any relaxation techniques before bed?",
+                "i feel anxious": "Anxiety can be overwhelming. Deep breathing or mindfulness exercises might help.",
+                "i don't want to talk": "That's okay. I'm here whenever you're ready.",
+                "i feel lost": "It's normal to feel lost sometimes. What do you think is causing these feelings?",
+                "can you help me?": "I'm here to support you. What specifically would you like help with?",
+                "i feel alone": "Feeling alone can be really hard. It's important to connect with others.",
+                "what's wrong with me?": "You're not alone in feeling this way. Many people experience similar feelings.",
+                "how do I cope?": "Coping strategies can include talking to someone, journaling, or engaging in activities you enjoy.",
+                "i just need someone to listen": "I'm here for you. Please share what's on your mind.",
+                "i feel overwhelmed": "It's okay to feel overwhelmed. Taking things one step at a time can help.",
+                "what if I can't get better?": "Recovery takes time, and it's okay to seek help from professionals.",
+                "is it normal to feel this way?": "Yes, many people experience ups and downs in their emotions.",
+            };
+
+            for (const key in responses) {
+                if (lowerInput.includes(key)) {
+                    return responses[key];
+                }
+            }
+            return "I'm sorry, I don't have an answer for that. Can you ask something else?";
+        }
+
+        // Speak the AI response using the selected voice
+        function speakResponse(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            const selectedVoice = voices.find(voice => voice.name === voiceSelect.value);
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+            utterance.lang = 'en-US';
+            speechSynthesis.speak(utterance);
+        }
+
+        // Image upload event listener
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    uploadedImage.src = e.target.result; // Set the src of the uploaded image
+                    uploadedImage.style.display = 'block'; // Show the uploaded image
+                    responseDiv.textContent = "Image uploaded successfully!";
+                };
+                reader.readAsDataURL(file); // Read the file as a Data URL
+            }
+        });
+
+        // Audio upload event listener
+        audioUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                     const reader = new FileReader();
+                reader.onload = function(e) {
+                    const audio = new Audio(e.target.result); // Create an audio element with the uploaded file
+                    audio.play(); // Play the audio
+                    responseDiv.textContent = "Audio uploaded and playing!";
+                };
+                reader.readAsDataURL(file); // Read the file as a Data URL
+            }
+        });
+
+        // Load voices when the page loads
+        window.onload = () => {
+            loadVoices();
+            speechSynthesis.onvoiceschanged = loadVoices; // Update voices if they change
+        };
+    </script>
+</body>
+</html>
+          
